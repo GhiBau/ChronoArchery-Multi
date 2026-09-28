@@ -1,0 +1,14 @@
+{
+  "name": "chronoarchery-master-server",
+  "version": "0.1.0",
+  "description": "Serveur maitre ChronoArchery : diffuse l'etat de chrono aux ecrans et recoit les commandes de la telecommande, via WebSocket.",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0",
+    "qrcode": "^1.5.4"
+  }
+}

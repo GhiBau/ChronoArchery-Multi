@@ -1,0 +1,26 @@
+[Unit]
+Description=ChronoArchery — session kiosque (agent de démarrage + affichage)
+After=local-fs.target network-pre.target
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+# Poste dédié à un seul usage : la session tourne en root pour éviter toute
+# gestion sudoers/permissions supplémentaire (voir node-agent/lib/netctl.js).
+User=root
+PAMName=login
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVTDisallocate=yes
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+# `startx` démarre son propre serveur X et y lance kiosk-launch.sh comme
+# client — pas besoin de gestionnaire de session graphique (lightdm/gdm) ni
+# d'autologin séparé : ce service EST la session.
+ExecStart=/usr/bin/startx /opt/chronoarchery/scripts/kiosk-launch.sh -- -nocursor vt1
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

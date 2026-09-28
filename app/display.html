@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ChronoArchery — Écran</title>
+<style>
+  :root{
+    --bg-deep:#12161c;
+    --state-red:#c24b4b;
+    --state-green:#3f9b6f;
+    --state-yellow:#d9b23f;
+    --lamp-off:#232a35;
+    --ink:#f5f1e8;
+    --ink-dim:#5b6270;
+    --letter-dim:#2a3140;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;height:100%;
+    background:var(--bg-deep);color:var(--ink);
+    font-family:'IBM Plex Mono',ui-monospace,monospace;
+    overflow:hidden;
+  }
+  body{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    height:100vh;width:100vw;
+    transition:background-color .3s ease;
+  }
+  /* Mode haute visibilité : le fond entier prend la couleur de la phase.
+     Activé par ?hv=1 dans l'URL de cet écran (réglage fixe par poste,
+     pas un bouton en direct — voir le README pour le pourquoi). */
+  body.hv[data-phase="approach"],body.hv[data-phase="stop"],body.hv[data-phase="halted"]{background:var(--state-red);}
+  body.hv[data-phase="run"]{background:var(--state-green);}
+  body.hv[data-phase="warn"]{background:var(--state-yellow);}
+
+  .lamps{display:flex;gap:6vh;margin-bottom:4vh;}
+  .lamp{width:9vh;height:9vh;border-radius:50%;background:var(--lamp-off);
+    box-shadow:inset 0 0 0 3px rgba(0,0,0,.25);}
+  .lamp.on.red{background:var(--state-red);box-shadow:0 0 6vh 1vh rgba(194,75,75,.6);}
+  .lamp.on.yellow{background:var(--state-yellow);box-shadow:0 0 6vh 1vh rgba(217,178,63,.6);}
+  .lamp.on.green{background:var(--state-green);box-shadow:0 0 6vh 1vh rgba(63,155,111,.6);}
+  body.hv .lamp{display:none;}
+
+  .letters{display:flex;gap:3vw;margin-bottom:2vh;font-size:6vh;font-weight:600;letter-spacing:.1em;}
+  .letters span{color:var(--letter-dim);}
+  .letters span.lit{color:var(--ink);}
+  .letters span.hidden-letter{display:none;}
+
+  .time{font-size:28vh;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;}
+  .time.pulse{animation:pulse 1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+
+  .status{position:fixed;bottom:1vh;left:1vh;font-size:1.6vh;color:var(--ink-dim);
+    display:flex;gap:1em;align-items:center;}
+  .status .dot{width:1em;height:1em;border-radius:50%;background:#555;display:inline-block;}
+  .status.connected .dot{background:var(--state-green);}
+  .status.connecting .dot{background:var(--state-yellow);}
+  .status.disconnected .dot{background:var(--state-red);}
+</style>
+</head>
+<body>
+  <div class="lamps">
+    <div class="lamp red" id="lampRed"></div>
+    <div class="lamp yellow" id="lampYellow"></div>
+    <div class="lamp green" id="lampGreen"></div>
+  </div>
+  <div class="letters">
+    <span data-letter="A">A</span><span data-letter="B">B</span>
+    <span data-letter="C">C</span><span data-letter="D">D</span>
+  </div>
+  <div class="time" id="timeDisplay">--</div>
+  <div class="status disconnected" id="status"><span class="dot"></span><span id="statusText">connexion…</span></div>
+
+<script src="chrono-net.js"></script>
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  if (params.get('hv') === '1') document.body.classList.add('hv');
+
+  const lampRed = document.getElementById('lampRed');
+  const lampYellow = document.getElementById('lampYellow');
+  const lampGreen = document.getElementById('lampGreen');
+  const timeDisplay = document.getElementById('timeDisplay');
+  const letterEls = document.querySelectorAll('.letters span');
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+
+  ChronoNet.unlockAudioOnFirstGesture();
+  // Un écran kiosque n'a pas d'interaction utilisateur pour "débloquer" l'audio
+  // (règle des navigateurs : pas de son avant un geste). On tente quand même
+  // un déblocage silencieux dès le chargement ; à défaut, le premier bip réel
+  // peut être manqué sur certains navigateurs — voir le README (limitation
+  // connue, à vérifier sur le matériel réel).
+  window.addEventListener('load', () => { try { ChronoNet.beep(0, false); } catch (e) {} });
+
+  let latest = null;   // dernier message "state" reçu
+  let toLocalMs = (t) => t;
+  let lastPhase = null;
+
+  function render() {
+    if (!latest) return;
+    const localStart = toLocalMs(latest.segmentStartMs);
+    const remaining = Math.max(0, latest.segmentDurationMs / 1000 - (Date.now() - localStart) / 1000);
+
+    timeDisplay.textContent = String(Math.max(0, Math.ceil(remaining)));
+    timeDisplay.classList.toggle('pulse', latest.phase === 'stop' || latest.phase === 'halted');
+
+    document.body.dataset.phase = latest.phase;
+    lampRed.classList.toggle('on', latest.phase === 'approach' || latest.phase === 'stop' || latest.phase === 'halted');
+    lampGreen.classList.toggle('on', latest.phase === 'run');
+    lampYellow.classList.toggle('on', latest.phase === 'warn');
+
+    letterEls.forEach((el) => {
+      const letter = el.dataset.letter;
+      el.classList.toggle('lit', latest.letters.includes(letter));
+      el.classList.toggle('hidden-letter', latest.mode === 'DUEL' && (letter === 'C' || letter === 'D'));
+    });
+  }
+
+  function onWelcome(state, toLocal) { toLocalMs = toLocal; latest = state; lastPhase = state.phase; render(); }
+  function onState(state, toLocal) { toLocalMs = toLocal; latest = state; render(); }
+  function onAudible(msg) { ChronoNet.beep(msg.count, latest ? latest.soundOn : true); }
+  function onConnectionChange(status) {
+    statusEl.className = 'status ' + status;
+    statusText.textContent = { connecting: 'connexion…', connected: 'connecté', disconnected: 'déconnecté — nouvelle tentative…' }[status] || status;
+  }
+
+  ChronoNet.connect({ role: 'display', onWelcome, onState, onAudible, onConnectionChange });
+  setInterval(render, 100);
+})();
+</script>
+</body>
+</html>

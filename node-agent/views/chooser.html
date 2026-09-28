@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChronoArchery — configuration du poste</title>
+<style>
+  :root{--bg:#12161c;--panel:#1b2029;--ink:#f5f1e8;--dim:#8b92a0;--accent:#3f9b6f;--border:#2a3140;}
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,sans-serif;}
+  body{padding:20px;max-width:520px;margin:0 auto;}
+  h1{font-size:1.15rem;margin:0 0 4px;}
+  .sub{color:var(--dim);font-size:.9rem;margin-bottom:20px;}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:18px;}
+  .countdown{font-size:3rem;font-weight:700;text-align:center;margin:6px 0;}
+  .default-choice{font-size:1rem;text-align:center;color:var(--dim);margin-bottom:10px;}
+  .default-choice b{color:var(--ink);}
+  button{font:inherit;cursor:pointer;}
+  .btn{width:100%;border:none;border-radius:10px;padding:14px;font-size:1rem;font-weight:600;color:var(--ink);background:var(--accent);margin-top:6px;}
+  .btn.secondary{background:#232a35;border:1px solid var(--border);}
+  .qr-row{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;}
+  .qr-block{text-align:center;}
+  .qr-block img{width:180px;height:180px;border-radius:8px;background:#f5f1e8;padding:8px;}
+  .qr-block .label{font-size:.85rem;color:var(--dim);margin-top:6px;max-width:200px;}
+  form{display:none;}
+  form.visible{display:block;}
+  .qr-section{display:none;}
+  .qr-section.visible{display:block;}
+  label{display:block;font-size:.85rem;color:var(--dim);margin:12px 0 4px;text-transform:uppercase;letter-spacing:.04em;}
+  input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:#0e1116;color:var(--ink);font-size:1rem;}
+  .role-row{display:flex;gap:10px;}
+  .role-row button{flex:1;padding:14px;border-radius:10px;border:1px solid var(--border);background:#232a35;color:var(--ink);}
+  .role-row button.active{background:var(--accent);border-color:var(--accent);}
+  .known{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .known button{background:#232a35;border:1px solid var(--border);color:var(--ink);border-radius:999px;padding:6px 12px;font-size:.85rem;}
+  .hint{font-size:.8rem;color:var(--dim);margin-top:14px;line-height:1.4;}
+</style>
+</head>
+<body>
+  <h1 id="title">ChronoArchery — configuration du poste</h1>
+  <div class="sub" id="deviceLabel">…</div>
+
+  <div class="card" id="statusCard">
+    <div class="default-choice" id="defaultChoice">Chargement…</div>
+    <div class="countdown" id="countdown"></div>
+    <button class="btn secondary" id="continueNowBtn" style="display:none;">Continuer maintenant</button>
+  </div>
+
+  <div class="card qr-section" id="qrSection">
+    <div class="qr-row">
+      <div class="qr-block">
+        <img id="wifiQr" alt="QR code WiFi">
+        <div class="label">1. Rejoindre le réseau <span id="setupSsidLabel"></span> avec le téléphone</div>
+      </div>
+      <div class="qr-block">
+        <img id="urlQr" alt="QR code URL">
+        <div class="label">2. Puis scanner celui-ci pour ouvrir la configuration</div>
+      </div>
+    </div>
+  </div>
+
+  <form id="decideForm" class="card">
+    <div class="role-row">
+      <button type="button" data-role="master" id="roleMasterBtn">Ce poste = MAÎTRE</button>
+      <button type="button" data-role="client" id="roleClientBtn">Ce poste = ÉCRAN</button>
+    </div>
+
+    <div id="networkIdGroup">
+      <label for="networkId">Identifiant du réseau à rejoindre</label>
+      <input type="text" id="networkId" placeholder="ex. blabla_54" autocomplete="off" autocapitalize="off">
+      <div class="known" id="knownList"></div>
+    </div>
+
+    <button type="submit" class="btn" id="submitBtn">Valider</button>
+    <div class="hint">Le maître crée son propre réseau ChronoArchery ; un écran rejoint le réseau créé par un maître déjà en place, en indiquant son identifiant.</div>
+  </form>
+
+<script>
+(function(){
+  const showQr = new URLSearchParams(location.search).get('showqr') === '1';
+  document.getElementById('qrSection').classList.toggle('visible', showQr);
+  document.getElementById('decideForm').classList.toggle('visible', !showQr);
+
+  let selectedRole = null;
+  const roleMasterBtn = document.getElementById('roleMasterBtn');
+  const roleClientBtn = document.getElementById('roleClientBtn');
+  const networkIdGroup = document.getElementById('networkIdGroup');
+  const networkIdInput = document.getElementById('networkId');
+  const knownList = document.getElementById('knownList');
+  const form = document.getElementById('decideForm');
+
+  function selectRole(role){
+    selectedRole = role;
+    roleMasterBtn.classList.toggle('active', role === 'master');
+    roleClientBtn.classList.toggle('active', role === 'client');
+    networkIdGroup.style.display = (role === 'client') ? 'block' : 'none';
+  }
+  roleMasterBtn.addEventListener('click', () => selectRole('master'));
+  roleClientBtn.addEventListener('click', () => selectRole('client'));
+  selectRole('client');
+
+  form.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const body = { role: selectedRole, networkId: networkIdInput.value };
+    const res = await fetch('/api/decide', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      document.getElementById('defaultChoice').textContent = 'Configuration envoyée — le poste redémarre son réseau…';
+      form.style.display = 'none';
+    } else {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || 'Entrée invalide.');
+    }
+  });
+
+  async function poll(){
+    try {
+      const res = await fetch('/api/state', { cache: 'no-store' });
+      const s = await res.json();
+
+      document.getElementById('deviceLabel').textContent = 'Poste ' + s.deviceLabel;
+      document.getElementById('setupSsidLabel').textContent = s.setupSsid;
+      document.getElementById('wifiQr').src = s.wifiQr;
+      document.getElementById('urlQr').src = s.urlQr;
+
+      if (s.knownNetworkIds && s.knownNetworkIds.length){
+        knownList.innerHTML = '';
+        s.knownNetworkIds.forEach((id) => {
+          const b = document.createElement('button');
+          b.type = 'button'; b.textContent = id;
+          b.addEventListener('click', () => { networkIdInput.value = id; });
+          knownList.appendChild(b);
+        });
+      }
+
+      const defaultChoice = document.getElementById('defaultChoice');
+      const countdown = document.getElementById('countdown');
+      const continueBtn = document.getElementById('continueNowBtn');
+
+      if (s.decided) {
+        defaultChoice.textContent = 'Configuration en cours d\\'application…';
+        countdown.textContent = '';
+        continueBtn.style.display = 'none';
+        return; // inutile de continuer à sonder
+      }
+
+      if (s.deadlineMs) {
+        const label = s.lastRole === 'master'
+          ? 'MAÎTRE'
+          : 'ÉCRAN connecté à « ' + s.selectedNetworkId + ' »';
+        defaultChoice.innerHTML = 'Dernière configuration : <b>' + label + '</b> — reprise automatique dans';
+        const remain = Math.max(0, Math.ceil((s.deadlineMs - s.nowMs) / 1000));
+        countdown.textContent = remain + ' s';
+        continueBtn.style.display = 'block';
+        continueBtn.onclick = () => {
+          fetch('/api/decide', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: s.lastRole, networkId: s.selectedNetworkId }),
+          });
+        };
+      } else {
+        defaultChoice.textContent = 'Aucune configuration précédente pour ce poste — scannez pour le configurer.';
+        countdown.textContent = '';
+        continueBtn.style.display = 'none';
+      }
+    } catch (err) { /* le poste redémarre peut-être déjà son réseau : on arrête de sonder en silence */ }
+  }
+  poll();
+  setInterval(poll, 1000);
+})();
+</script>
+</body>
+</html>

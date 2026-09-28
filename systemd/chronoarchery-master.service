@@ -1,0 +1,17 @@
+[Unit]
+Description=ChronoArchery — serveur maître (autorité de chronométrage)
+# Volontairement PAS de [Install]/WantedBy : ce service ne démarre jamais
+# tout seul au boot. C'est l'agent de démarrage (node-agent/agent.js) qui
+# décide, à chaque démarrage, s'il faut le lancer (poste "maître") ou non
+# (poste "écran") — voir systemd/chronoarchery-kiosk.service et la
+# conversation de conception sur le choix de rôle à chaque boot.
+# Une fois démarré, en revanche, Restart=always le supervise normalement
+# pour le reste de la session : s'il plante en cours d'entraînement, il
+# repart seul sans qu'un bénévole ait à intervenir.
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/node /opt/chronoarchery/server/server.js --port 8090
+Restart=always
+RestartSec=1

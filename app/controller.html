@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChronoArchery — Télécommande</title>
+<style>
+  :root{
+    --bg-deep:#12161c;--bg-panel:#1b2029;--bg-panel-2:#232a35;
+    --state-red:#c24b4b;--state-green:#3f9b6f;--state-yellow:#d9b23f;
+    --ink:#f5f1e8;--ink-dim:#8b92a0;--border:#2a3140;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;background:var(--bg-deep);color:var(--ink);
+    font-family:ui-sans-serif,system-ui,sans-serif;}
+  body{padding:16px;max-width:480px;margin:0 auto;padding-bottom:48px;}
+  h1{font-size:1.1rem;font-weight:600;margin:0 0 4px;}
+  .status-line{font-size:.85rem;color:var(--ink-dim);margin-bottom:16px;display:flex;gap:.6em;align-items:center;}
+  .dot{width:.8em;height:.8em;border-radius:50%;background:#555;display:inline-block;}
+  .status-line.connected .dot{background:var(--state-green);}
+  .status-line.connecting .dot{background:var(--state-yellow);}
+  .status-line.disconnected .dot{background:var(--state-red);}
+
+  .live{background:var(--bg-panel);border:1px solid var(--border);border-radius:12px;
+    padding:14px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;}
+  .live .phase{font-size:.95rem;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;}
+  .live .time{font-size:2.4rem;font-weight:700;font-variant-numeric:tabular-nums;}
+
+  section{margin-bottom:18px;}
+  .label{font-size:.8rem;color:var(--ink-dim);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
+  .chip-row{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip{background:var(--bg-panel-2);border:1px solid var(--border);color:var(--ink);
+    border-radius:999px;padding:8px 14px;font-size:.9rem;cursor:pointer;}
+  .chip.active{background:var(--ink);color:var(--bg-deep);border-color:var(--ink);}
+  .hidden-group{display:none;}
+
+  .big-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;}
+  .btn{border:none;border-radius:12px;padding:16px;font-size:1rem;font-weight:600;cursor:pointer;color:var(--ink);}
+  .btn-start{background:var(--state-green);grid-column:1 / -1;}
+  .btn-volleyend{background:var(--state-yellow);color:#2a2410;}
+  .btn-emergency{background:var(--state-red);}
+  .btn-reset{background:var(--bg-panel-2);border:1px solid var(--border);grid-column:1 / -1;}
+  .btn:disabled{opacity:.35;}
+</style>
+</head>
+<body>
+  <h1>ChronoArchery — télécommande</h1>
+  <div class="status-line disconnected" id="status"><span class="dot"></span><span id="statusText">connexion…</span></div>
+
+  <div class="live">
+    <div class="phase" id="phaseLabel">—</div>
+    <div class="time" id="timeLabel">--</div>
+  </div>
+
+  <section>
+    <div class="label">Séquence</div>
+    <div class="chip-row" id="sequenceChips">
+      <button class="chip" data-seq="AB">AB</button>
+      <button class="chip" data-seq="ABC">ABC</button>
+      <button class="chip active" data-seq="ABCD">AB / CD</button>
+      <button class="chip" data-seq="DUEL">Duel</button>
+    </div>
+  </section>
+
+  <section id="starterRow" class="hidden-group">
+    <div class="label">Qui commence le duel</div>
+    <div class="chip-row" id="starterChips">
+      <button class="chip active" data-starter="A">A</button>
+      <button class="chip" data-starter="B">B</button>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">Durée de tir</div>
+    <div class="chip-row" id="durationChips">
+      <button class="chip active" data-duration="120">120 s</button>
+      <button class="chip" data-duration="90">90 s</button>
+      <button class="chip" data-duration="40">40 s</button>
+    </div>
+  </section>
+
+  <section>
+    <button class="chip active" id="soundToggle">🔊 Bips activés</button>
+    <button class="chip" id="switchBtn" style="margin-left:8px;">Forcer bascule AB ⇄ CD</button>
+  </section>
+
+  <div class="big-actions">
+    <button class="btn btn-start" id="startBtn">Démarrer / Reprendre</button>
+    <button class="btn btn-volleyend" id="volleyEndBtn" disabled>Fin de volée</button>
+    <button class="btn btn-emergency" id="emergencyBtn" disabled>Arrêt d'urgence</button>
+    <button class="btn btn-reset" id="resetBtn">Réinitialiser</button>
+  </div>
+
+<script src="chrono-net.js"></script>
+<script>
+(function(){
+  const statusEl = document.getElementById('status');
+  const statusText = document.getElementById('statusText');
+  const phaseLabel = document.getElementById('phaseLabel');
+  const timeLabel = document.getElementById('timeLabel');
+  const sequenceChips = document.querySelectorAll('#sequenceChips .chip');
+  const durationChips = document.querySelectorAll('#durationChips .chip');
+  const starterChips = document.querySelectorAll('#starterChips .chip');
+  const starterRow = document.getElementById('starterRow');
+  const soundToggle = document.getElementById('soundToggle');
+  const switchBtn = document.getElementById('switchBtn');
+  const startBtn = document.getElementById('startBtn');
+  const volleyEndBtn = document.getElementById('volleyEndBtn');
+  const emergencyBtn = document.getElementById('emergencyBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const PHASE_LABELS = { ready:'Prêt', approach:'Mise en place', run:'Tir', warn:'Tir (fin proche)', halted:'Suspendu', stop:'Fin de volée' };
+
+  let net = null;
+  let latest = null;
+  let toLocalMs = (t) => t;
+
+  function render() {
+    if (!latest) return;
+    phaseLabel.textContent = PHASE_LABELS[latest.phase] || latest.phase;
+    const localStart = toLocalMs(latest.segmentStartMs);
+    const remaining = Math.max(0, latest.segmentDurationMs / 1000 - (Date.now() - localStart) / 1000);
+    timeLabel.textContent = String(Math.max(0, Math.ceil(remaining)));
+
+    sequenceChips.forEach(c => c.classList.toggle('active', c.dataset.seq === latest.mode));
+    durationChips.forEach(c => c.classList.toggle('active', String(latest.totalDuration) === c.dataset.duration));
+    starterChips.forEach(c => c.classList.toggle('active', c.dataset.starter === latest.duelStarter));
+    starterRow.classList.toggle('hidden-group', latest.mode !== 'DUEL');
+    soundToggle.textContent = latest.soundOn ? '🔊 Bips activés' : '🔇 Bips coupés';
+    soundToggle.classList.toggle('active', latest.soundOn);
+
+    const running = (latest.phase === 'approach' || latest.phase === 'run' || latest.phase === 'warn');
+    startBtn.disabled = running;
+    startBtn.textContent = (latest.phase === 'halted') ? 'Reprendre le tir' : 'Démarrer';
+    volleyEndBtn.disabled = !(latest.phase === 'run' || latest.phase === 'warn');
+    emergencyBtn.disabled = !running;
+  }
+
+  function onWelcome(state, toLocal) { toLocalMs = toLocal; latest = state; render(); }
+  function onState(state, toLocal) { toLocalMs = toLocal; latest = state; render(); }
+  function onConnectionChange(status) {
+    statusEl.className = 'status-line ' + status;
+    statusText.textContent = { connecting:'connexion…', connected:'connecté au maître', disconnected:'déconnecté — nouvelle tentative…' }[status] || status;
+  }
+
+  net = ChronoNet.connect({ role: 'controller', onWelcome, onState, onConnectionChange });
+  setInterval(render, 200);
+
+  sequenceChips.forEach(chip => chip.addEventListener('click', () => net.set('mode', chip.dataset.seq)));
+  starterChips.forEach(chip => chip.addEventListener('click', () => net.set('duelStarter', chip.dataset.starter)));
+  durationChips.forEach(chip => chip.addEventListener('click', () => net.set('duration', parseInt(chip.dataset.duration, 10))));
+  switchBtn.addEventListener('click', () => net.set('switchSide'));
+  soundToggle.addEventListener('click', () => net.set('sound', !(latest && latest.soundOn)));
+  startBtn.addEventListener('click', () => net.cmd('startOrResume'));
+  volleyEndBtn.addEventListener('click', () => net.cmd('volleyEnd'));
+  emergencyBtn.addEventListener('click', () => net.cmd('emergencyStop'));
+  resetBtn.addEventListener('click', () => net.cmd('reset'));
+})();
+</script>
+</body>
+</html>

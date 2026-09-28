@@ -1,0 +1,10 @@
+{
+  "name": "chronoarchery-agent",
+  "version": "0.1.0",
+  "description": "Agent de demarrage ChronoArchery : choix du role (maitre/ecran) a chaque boot, provisioning WiFi via QR code, memorisation de la derniere configuration.",
+  "private": true,
+  "main": "agent.js",
+  "dependencies": {
+    "qrcode": "^1.5.4"
+  }
+}

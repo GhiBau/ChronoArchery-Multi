@@ -1,7 +1,8 @@
-# ChronoArchery — solution multi-écrans (prototype)
+# ChronoArchery Multi (prototype)
 
 Ce dépôt contient le premier prototype fonctionnel de la version "évoluée"
-de ChronoArchery évoquée en discussion : un poste **maître** (un téléphone
+de [ChronoArchery](https://github.com/ghibau/chronoarchery) (la page solo,
+inchangée, reste sur son propre dépôt) : un poste **maître** (un téléphone
 pilote la séquence) et un ou plusieurs postes **écran** (affichage
 synchronisé, sur Raspberry Pi ou vieux PC/portable), reliés par un réseau
 WiFi local fermé, sans aucune dépendance à Internet en fonctionnement.
@@ -96,7 +97,7 @@ simple pour un premier essai réel est :
    sur le portable (clé USB, `scp`, etc.).
 3. Lancer :
    ```bash
-   sudo bash scripts/install.sh --source-dir /chemin/vers/chronoarchery-kiosk
+   sudo bash scripts/install.sh --source-dir /chemin/vers/chronoarchery-multi
    ```
 4. Redémarrer. Le poste doit démarrer directement en mode kiosque et
    afficher l'écran de configuration (QR code) puisqu'aucun rôle n'est

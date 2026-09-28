@@ -3,7 +3,7 @@
 # Raspberry Pi OS) fraîchement installée. Point d'entrée unique appelé soit :
 #   - par le `late_command` du preseed Debian (voir preseed/preseed.cfg),
 #   - à la main, pour un premier test sur un vieil ordinateur portable :
-#       sudo bash install.sh --source-dir /chemin/vers/chronoarchery-kiosk
+#       sudo bash install.sh --source-dir /chemin/vers/chronoarchery-multi
 #
 # Ne touche jamais aux images/paquets de base : uniquement des paquets APT
 # standard + les fichiers de ce projet, déployés dans /opt/chronoarchery.
@@ -96,8 +96,8 @@ log "écriture de la configuration de mise à jour ($CONF_DIR/update-source.conf
   echo "# Source utilisée par scripts/update-check.sh pour vérifier et"
   echo "# télécharger les nouvelles versions. À ajuster si le dépôt réel"
   echo "# diffère (nom du dépôt, branche, etc.)."
-  echo "REPO_RAW_BASE=\"${REPO_RAW_BASE_ARG:-https://raw.githubusercontent.com/ghibau/chronoarchery-kiosk/main}\""
-  echo "REPO_TARBALL_URL=\"${REPO_TARBALL_URL_ARG:-https://github.com/ghibau/chronoarchery-kiosk/archive/refs/heads/main.tar.gz}\""
+  echo "REPO_RAW_BASE=\"${REPO_RAW_BASE_ARG:-https://raw.githubusercontent.com/GhiBau/chronoarchery-multi/main}\""
+  echo "REPO_TARBALL_URL=\"${REPO_TARBALL_URL_ARG:-https://github.com/GhiBau/chronoarchery-multi/archive/refs/heads/main.tar.gz}\""
 } > "$CONF_DIR/update-source.conf"
 
 log "installation des unités systemd"
